@@ -1,0 +1,63 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    /**
+     * Run the migrations.
+     *
+     * Cria a tabela importacoes que rastreia todos os imports de dados eleitorais
+     */
+    public function up(): void
+    {
+        Schema::create('importacoes', function (Blueprint $table) {
+            $table->id();
+
+            // ═══════════════════════════════════════════════════════════════════
+            // METADADOS DO ARQUIVO
+            // ═══════════════════════════════════════════════════════════════════
+            $table->string('arquivo_nome', 255); // Nome original do arquivo CSV
+            $table->enum('tipo', ['VOTACAO_CANDIDATO', 'VOTACAO_SECAO']); // Tipo de importação
+
+            // ═══════════════════════════════════════════════════════════════════
+            // STATUS DA IMPORTAÇÃO
+            // ═══════════════════════════════════════════════════════════════════
+            $table->enum('status', ['pendente', 'processando', 'concluido', 'erro'])->default('pendente');
+
+            // ═══════════════════════════════════════════════════════════════════
+            // ESTATÍSTICAS DE PROCESSAMENTO
+            // ═══════════════════════════════════════════════════════════════════
+            $table->integer('total_linhas')->default(0); // Total de linhas do CSV
+            $table->integer('processados')->default(0); // Registros processados com sucesso
+            $table->integer('erros')->default(0); // Registros com erro
+
+            // ═══════════════════════════════════════════════════════════════════
+            // METADADOS ADICIONAIS
+            // ═══════════════════════════════════════════════════════════════════
+            $table->json('metadados')->nullable(); // Dados extras em JSON (ex: configurações, detalhes)
+
+            // ═══════════════════════════════════════════════════════════════════
+            // TIMESTAMPS
+            // ═══════════════════════════════════════════════════════════════════
+            $table->timestamps();
+
+            // ═══════════════════════════════════════════════════════════════════
+            // ÍNDICES
+            // ═══════════════════════════════════════════════════════════════════
+            $table->index('tipo');
+            $table->index('status');
+            $table->index('created_at');
+        });
+    }
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
+    {
+        Schema::dropIfExists('importacoes');
+    }
+};
