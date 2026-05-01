@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\Plano;
-use App\Models\UsuarioCliente;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -17,14 +16,14 @@ class GerenteController extends Controller
     {
         $clientes = User::where('role', 'cliente')
             ->with('plano')
-            ->withCount('usuariosCliente')
+            ->withCount('subUsuarios')
             ->get();
 
         $planos = Plano::withCount(['clientes as total_clientes'])->get();
 
         $totalClientes = $clientes->count();
         $ativos        = $clientes->where('ativo', true)->count();
-        $totalUsuarios = UsuarioCliente::count();
+        $totalUsuarios = User::where('role', 'sub_usuario')->count();
 
         $clientesPorPlano = $planos->map(fn($p) => [
             'nome'  => $p->nome,
@@ -65,7 +64,7 @@ class GerenteController extends Controller
                 'plano_nome'         => $c->plano?->nome,
                 'plano_preco'        => $c->plano?->preco,
                 'limite_usuarios'    => $c->plano?->limite_usuarios ?? 0,
-                'total_usuarios'     => $c->usuarios_cliente_count,
+                'total_usuarios'     => $c->sub_usuarios_count,
                 'ativo'              => $c->ativo,
                 'criado_em'          => $c->created_at?->toDateString(),
                 'eleicoes_vinculadas' => isset($eleicoesPorCliente[$c->id])

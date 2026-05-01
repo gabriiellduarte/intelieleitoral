@@ -4,11 +4,12 @@ namespace App\Providers;
 
 use App\Actions\Fortify\CreateNewUser;
 use App\Actions\Fortify\ResetUserPassword;
+use App\Http\Responses\LoginResponse;
 use App\Models\Plano;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\RateLimiter;
+use Laravel\Fortify\Contracts\LoginResponse as LoginResponseContract;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
@@ -22,7 +23,10 @@ class FortifyServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // Substitui o LoginResponse padrão do Fortify pelo customizado,
+        // garantindo que o redirecionamento pós-login nunca use a URL "intended"
+        // salva em sessão (ex.: /dashboard), sempre respeitando o papel do usuário
+        $this->app->singleton(LoginResponseContract::class, LoginResponse::class);
     }
 
     /**
@@ -42,29 +46,6 @@ class FortifyServiceProvider extends ServiceProvider
     {
         Fortify::resetUserPasswordsUsing(ResetUserPassword::class);
         Fortify::createUsersUsing(CreateNewUser::class);
-
-        Fortify::redirects('login', function (Request $request) {
-            $user = $request->user();
-
-            // Admin vai para o seletor de eleição
-            if ($user->role === 'admin_saas') {
-                return '/app';
-            }
-
-            // Resolve o cliente dono da assinatura
-            $clienteId = $user->id; // para role=cliente o próprio user é o cliente
-
-            $eleicoes = DB::table('cliente_eleicoes')
-                ->where('cliente_id', $clienteId)
-                ->pluck('eleicao_id');
-
-            // Com exatamente uma eleição vai direto, senão vai para o seletor
-            if ($eleicoes->count() === 1) {
-                return "/app/{$eleicoes->first()}/dashboard";
-            }
-
-            return '/app';
-        });
     }
 
     /**

@@ -32,6 +32,18 @@ class EnsureEleicaoAccess
             abort(403, 'Conta sem assinatura ativa.');
         }
 
+        // Sub-usuário depende do status do cliente principal
+        if ($user->role === 'sub_usuario') {
+            $clienteAtivo = DB::table('users')
+                ->where('id', $clienteId)
+                ->where('ativo', true)
+                ->exists();
+
+            if (!$clienteAtivo) {
+                abort(403, 'Cliente principal está inativo.');
+            }
+        }
+
         // Se a conta não tem nenhuma eleição vinculada, libera tudo (retrocompatibilidade)
         $temVinculos = DB::table('cliente_eleicoes')
             ->where('cliente_id', $clienteId)
@@ -60,7 +72,12 @@ class EnsureEleicaoAccess
             return $user->id;
         }
 
-        // Sub-usuário criado via painel (tabela usuarios_cliente)
+        // Sub-usuário já migrado para a tabela users
+        if ($user->role === 'sub_usuario') {
+            return $user->cliente_principal_id;
+        }
+
+        // Fallback temporário para legado em usuarios_cliente
         $subUsuario = DB::table('usuarios_cliente')
             ->where('email', $user->email)
             ->first();

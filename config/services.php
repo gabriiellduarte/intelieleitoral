@@ -39,4 +39,15 @@ return [
         'geocoding_api_key' => env('GOOGLE_GEOCODING_API_KEY'),
     ],
 
+    // Asaas — gateway de pagamentos
+    'asaas' => [
+        'api_key'        => env('ASAAS_API_KEY', ''),
+        // Segredo compartilhado para validar a assinatura dos webhooks recebidos
+        'webhook_token'  => env('ASAAS_WEBHOOK_TOKEN', ''),
+        // Use a URL de sandbox durante testes; troque para https://api.asaas.com/v3 em produção
+        'base_url'       => env('ASAAS_BASE_URL', 'https://api-sandbox.asaas.com/v3'),
+        // Tempo máximo de espera por resposta da API (segundos)
+        'timeout'        => (int) env('ASAAS_TIMEOUT', 15),
+    ],
+
 ];

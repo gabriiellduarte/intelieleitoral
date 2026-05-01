@@ -7,6 +7,7 @@ type PropsCompartilhadas = {
         user?: {
             name?: string;
             email?: string;
+            role?: string;
         };
     };
     eleicao_id?: number | string | null;
@@ -102,23 +103,24 @@ export default function AppElectoralLayout({ children }: { children: React.React
                             );
                         })}
 
-                        {/* Importar — admin */}
-                        <div className="border-t border-gray-200 mt-4 pt-4">
-                            <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 px-3 mb-2">Admin</p>
-                            <Link
-                                href="/app/importar"
-                                onClick={() => setSidebarOpen(false)}
-                                className={`
-                                    flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium mb-0.5 transition-colors
-                                    ${currentPath === '/app/importar'
-                                        ? 'bg-blue-50 text-blue-700'
-                                        : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}
-                                `}
-                            >
-                                <i className={`fa-solid fa-cloud-arrow-up w-4 text-center ${currentPath === '/app/importar' ? 'text-blue-600' : 'text-gray-400'}`}></i>
-                                Importar
-                            </Link>
-                        </div>
+                        {auth?.user?.role === 'admin_saas' && (
+                            <div className="border-t border-gray-200 mt-4 pt-4">
+                                <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 px-3 mb-2">Admin</p>
+                                <Link
+                                    href="/app/importar"
+                                    onClick={() => setSidebarOpen(false)}
+                                    className={`
+                                        flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium mb-0.5 transition-colors
+                                        ${currentPath === '/app/importar'
+                                            ? 'bg-blue-50 text-blue-700'
+                                            : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}
+                                    `}
+                                >
+                                    <i className={`fa-solid fa-cloud-arrow-up w-4 text-center ${currentPath === '/app/importar' ? 'text-blue-600' : 'text-gray-400'}`}></i>
+                                    Importar
+                                </Link>
+                            </div>
+                        )}
 
                         <div className="border-t border-gray-200 mt-4 pt-4">
                             <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 px-3 mb-2">Conta</p>

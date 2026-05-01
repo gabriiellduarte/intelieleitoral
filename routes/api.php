@@ -8,6 +8,7 @@ use App\Http\Controllers\Electoral\ImportarController;
 use App\Http\Controllers\Electoral\ImportarSecaoController;
 use App\Http\Controllers\Electoral\StatusController;
 use App\Http\Controllers\Electoral\VotosController;
+use App\Http\Controllers\WebhookAsaasController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -65,3 +66,12 @@ Route::delete('/imports/{id}', [ImportarController::class, 'destroy'])->where('i
 
 // Geocodificação
 Route::middleware('throttle:20,1')->post('/geocoding/coordenadas', [AppGeocodingController::class, 'obterCoordenadas']);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Webhook Asaas — recebe notificações de pagamento/assinatura do gateway
+// Não exige autenticação (o Asaas assina via header asaas-access-token)
+// Já está no grupo "api", portanto sem CSRF e sem middleware "web"
+// ─────────────────────────────────────────────────────────────────────────────
+Route::post('/webhook/asaas', [WebhookAsaasController::class, 'handle'])
+     ->middleware('throttle:60,1')
+     ->name('webhook.asaas');

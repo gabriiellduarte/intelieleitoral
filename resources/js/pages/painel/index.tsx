@@ -28,8 +28,28 @@ type Usuario = {
     ultimo_acesso: string | null;
 };
 
+type Assinatura = {
+    status: 'ativa' | 'cancelamento_pendente' | 'inativa';
+    renova_em: string | null;
+    cancelar_no_fim_ciclo: boolean;
+    cancelada_em: string | null;
+};
+
+type Pagamento = {
+    id: number;
+    valor: number;
+    moeda: string;
+    status: string;
+    metodo_pagamento: string | null;
+    referencia: string | null;
+    pago_em: string | null;
+    plano_nome: string | null;
+};
+
 type Props = {
     stats: Stats;
+    assinatura: Assinatura;
+    pagamentos: Pagamento[];
     usuarios: Usuario[];
 };
 
@@ -51,12 +71,13 @@ type ModalState =
     | { type: 'editar'; usuario: Usuario }
     | { type: 'excluir'; usuario: Usuario };
 
-export default function PainelIndex({ stats, usuarios }: Props) {
+export default function PainelIndex({ stats, assinatura, pagamentos, usuarios }: Props) {
     const [aba, setAba] = useState<'dashboard' | 'usuarios'>('dashboard');
     const [modal, setModal] = useState<ModalState>({ type: 'closed' });
     const [form, setForm] = useState({ nome: '', email: '', senha: '', cargo: 'usuario', ativo: true });
     const [erros, setErros] = useState<Record<string, string>>({});
     const [processando, setProcessando] = useState(false);
+    const [cancelandoAssinatura, setCancelandoAssinatura] = useState(false);
 
     const abrirNovo = () => {
         setForm({ nome: '', email: '', senha: '', cargo: 'usuario', ativo: true });
@@ -91,6 +112,49 @@ export default function PainelIndex({ stats, usuarios }: Props) {
     const excluir = (id: number) => {
         router.delete(painel.usuarios.destroy.url(id), {
             onSuccess: () => setModal({ type: 'closed' }),
+        });
+    };
+
+    const formatarData = (valor: string | null, incluirHora = false) => {
+        if (!valor) {
+            return '—';
+        }
+
+        const data = new Date(valor);
+        if (Number.isNaN(data.getTime())) {
+            return '—';
+        }
+
+        return new Intl.DateTimeFormat('pt-BR', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            ...(incluirHora ? { hour: '2-digit', minute: '2-digit' } : {}),
+        }).format(data);
+    };
+
+    const formatarMoeda = (valor: number, moeda: string) => {
+        try {
+            return new Intl.NumberFormat('pt-BR', {
+                style: 'currency',
+                currency: moeda || 'BRL',
+            }).format(valor ?? 0);
+        } catch {
+            return `R$ ${valor.toFixed(2)}`;
+        }
+    };
+
+    const cancelarAssinaturaAtual = () => {
+        const confirmar = window.confirm('Deseja cancelar a assinatura ao final do ciclo atual?');
+        if (!confirmar) {
+            return;
+        }
+
+        setCancelandoAssinatura(true);
+        router.post('/painel/assinatura/cancelar', {}, {
+            preserveScroll: true,
+            onError: (e) => setErros((atual) => ({ ...atual, ...e })),
+            onFinish: () => setCancelandoAssinatura(false),
         });
     };
 
@@ -186,6 +250,93 @@ export default function PainelIndex({ stats, usuarios }: Props) {
                                 </div>
                             </div>
                         )}
+
+                        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+                            <div className="xl:col-span-1 bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+                                <div className="flex items-start justify-between gap-3">
+                                    <div>
+                                        <h3 className="font-semibold text-gray-900">Assinatura</h3>
+                                        <p className="text-sm text-gray-500 mt-0.5">Gerencie sua renovação e cancelamento</p>
+                                    </div>
+                                    <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${assinatura.status === 'ativa' ? 'bg-emerald-100 text-emerald-700' : assinatura.status === 'cancelamento_pendente' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600'}`}>
+                                        {assinatura.status === 'ativa' && 'Ativa'}
+                                        {assinatura.status === 'cancelamento_pendente' && 'Cancelamento pendente'}
+                                        {assinatura.status === 'inativa' && 'Inativa'}
+                                    </span>
+                                </div>
+
+                                <div className="mt-5 space-y-3 text-sm">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-gray-500">Próxima renovação</span>
+                                        <span className="font-medium text-gray-900">{formatarData(assinatura.renova_em)}</span>
+                                    </div>
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-gray-500">Cancelada em</span>
+                                        <span className="font-medium text-gray-900">{formatarData(assinatura.cancelada_em, true)}</span>
+                                    </div>
+                                </div>
+
+                                {erros.assinatura && (
+                                    <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-3 mt-4">{erros.assinatura}</p>
+                                )}
+
+                                <button
+                                    onClick={cancelarAssinaturaAtual}
+                                    disabled={cancelandoAssinatura || assinatura.cancelar_no_fim_ciclo || !plano}
+                                    className="w-full mt-5 px-4 py-2 rounded-lg border border-red-200 text-red-600 text-sm font-semibold hover:bg-red-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    {assinatura.cancelar_no_fim_ciclo
+                                        ? 'Assinatura já está com cancelamento agendado'
+                                        : cancelandoAssinatura
+                                            ? 'Processando cancelamento...'
+                                            : 'Cancelar assinatura no fim do ciclo'}
+                                </button>
+                            </div>
+
+                            <div className="xl:col-span-2 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                                <div className="px-6 py-4 border-b border-gray-200">
+                                    <h3 className="font-semibold text-gray-900">Histórico de pagamentos</h3>
+                                    <p className="text-sm text-gray-500 mt-0.5">Pagamentos processados da sua assinatura</p>
+                                </div>
+
+                                {pagamentos.length === 0 ? (
+                                    <div className="p-8 text-center text-sm text-gray-500">
+                                        Nenhum pagamento encontrado até o momento.
+                                    </div>
+                                ) : (
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-sm">
+                                            <thead>
+                                                <tr className="bg-gray-50 border-b border-gray-200">
+                                                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Data</th>
+                                                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Plano</th>
+                                                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Método</th>
+                                                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
+                                                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Valor</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-gray-100">
+                                                {pagamentos.map((pagamento) => (
+                                                    <tr key={pagamento.id} className="hover:bg-gray-50 transition-colors">
+                                                        <td className="px-4 py-3 text-gray-600">{formatarData(pagamento.pago_em, true)}</td>
+                                                        <td className="px-4 py-3 text-gray-700">{pagamento.plano_nome ?? (plano?.nome ?? '—')}</td>
+                                                        <td className="px-4 py-3 text-gray-600">{pagamento.metodo_pagamento ?? '—'}</td>
+                                                        <td className="px-4 py-3">
+                                                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${pagamento.status === 'pago' ? 'bg-emerald-100 text-emerald-700' : pagamento.status === 'pendente' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600'}`}>
+                                                                {pagamento.status}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-4 py-3 text-right font-semibold text-gray-900">
+                                                            {formatarMoeda(pagamento.valor, pagamento.moeda)}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
 
                         {/* Empty state */}
                         {usuarios.length === 0 && (

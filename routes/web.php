@@ -34,6 +34,7 @@ Route::get('/', function () {
 // Painel do Cliente
 Route::middleware(['auth'])->group(function () {
     Route::get('/painel', [PainelController::class, 'index'])->name('painel');
+    Route::post('/painel/assinatura/cancelar', [PainelController::class, 'cancelarAssinatura'])->name('painel.assinatura.cancelar');
     Route::post('/painel/usuarios', [PainelController::class, 'storeUsuario'])->name('painel.usuarios.store');
     Route::put('/painel/usuarios/{usuario}', [PainelController::class, 'updateUsuario'])->name('painel.usuarios.update');
     Route::delete('/painel/usuarios/{usuario}', [PainelController::class, 'destroyUsuario'])->name('painel.usuarios.destroy');
@@ -49,7 +50,7 @@ Route::middleware(['auth'])->group(function () {
 });
 
 Route::middleware(['auth', 'verified'])->group(function () {
-    Route::inertia('dashboard', 'dashboard')->name('dashboard');
+    Route::inertia('inicio', 'welcome')->name('dashboard');
 });
 
 // ─── App Eleitoral ────────────────────────────────────────────────────────────
@@ -58,22 +59,67 @@ Route::middleware(['auth', 'verified'])->group(function () {
 Route::middleware(['auth'])->get('/app', function () {
     $user = auth()->user();
 
-    // Eleições acessíveis ao usuário
-    $temVinculos = DB::table('cliente_eleicoes')->where('cliente_id', $user->id)->exists();
+    $resolverClienteId = function () use ($user): ?int {
+        if ($user->role === 'cliente') {
+            return $user->id;
+        }
 
-    $eleicoes = $temVinculos && $user->role !== 'admin_saas'
-        ? DB::table('eleicoes as e')
-            ->join('cliente_eleicoes as ce', 'ce.eleicao_id', '=', 'e.id')
-            ->where('ce.cliente_id', $user->id)
-            ->select('e.id', 'e.ano', 'e.descricao')
-            ->orderByDesc('e.ano')
-            ->orderBy('e.descricao')
-            ->get()
-        : DB::table('eleicoes')
+        if ($user->role === 'sub_usuario') {
+            return $user->cliente_principal_id;
+        }
+
+        // Compatibilidade temporária com legado em usuarios_cliente
+        $subUsuarioLegado = DB::table('usuarios_cliente')
+            ->where('email', $user->email)
+            ->first();
+
+        return $subUsuarioLegado?->cliente_id;
+    };
+
+    $clienteId = $resolverClienteId();
+
+    // Eleições acessíveis ao usuário
+    $temVinculos = $clienteId
+        ? DB::table('cliente_eleicoes')->where('cliente_id', $clienteId)->exists()
+        : false;
+
+    if ($user->role === 'admin_saas') {
+        $eleicoes = DB::table('eleicoes')
             ->select('id', 'ano', 'descricao')
             ->orderByDesc('ano')
             ->orderBy('descricao')
             ->get();
+    } elseif ($user->role === 'sub_usuario') {
+        $clienteAtivo = DB::table('users')
+            ->where('id', $clienteId)
+            ->where('ativo', true)
+            ->exists();
+
+        if (!$clienteAtivo) {
+            abort(403, 'Cliente principal está inativo.');
+        }
+
+        $eleicoes = $temVinculos
+            ? DB::table('eleicoes as e')
+                ->join('cliente_eleicoes as ce', 'ce.eleicao_id', '=', 'e.id')
+                ->where('ce.cliente_id', $clienteId)
+                ->select('e.id', 'e.ano', 'e.descricao')
+                ->orderByDesc('e.ano')
+                ->orderBy('e.descricao')
+                ->get()
+            : collect();
+    } elseif ($temVinculos) {
+        $eleicoes = DB::table('eleicoes as e')
+            ->join('cliente_eleicoes as ce', 'ce.eleicao_id', '=', 'e.id')
+            ->where('ce.cliente_id', $clienteId)
+            ->select('e.id', 'e.ano', 'e.descricao')
+            ->orderByDesc('e.ano')
+            ->orderBy('e.descricao')
+            ->get();
+    } else {
+        // Cliente sem vínculo não pode visualizar eleições
+        $eleicoes = collect();
+    }
 
     // Auto-redireciona se só tiver uma eleição disponível
     if ($eleicoes->count() === 1) {
